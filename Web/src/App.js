@@ -4,12 +4,10 @@ import * as tf from "@tensorflow/tfjs";
 import Webcam from "react-webcam";
 
 import "./App.css";
-// 2. TODO - Import drawing utility here
 
-import { drawRect } from "./utilities";
 const blazeface = require("@tensorflow-models/blazeface");
 
-const classes = ["FC", "FP", "NF"];
+const classes = ["Correctly placed", "Poorly placed", "No face mask"];
 
 function App() {
   const webcamRef = useRef(null);
@@ -21,7 +19,7 @@ function App() {
     // e.g. const net = await cocossd.load();
 
     const net = await tf.loadLayersModel(
-      "https://tensorflowrealtimefacemask.s3.us-south.cloud-object-storage.appdomain.cloud/model.json"
+      process.env.REACT_APP_MODEL_URL
     );
     const modelFaces = await blazeface.load();
 
@@ -64,13 +62,33 @@ function App() {
       if (predictions.length > 0 && predictions.length < 2) {
         const start = predictions[0].topLeft;
         const end = predictions[0].bottomRight;
+        
         const size = [end[0] - start[0], end[1] - start[1]];
 
         console.log("One face found");
 
         // ------------------ Preprocess image --------------
+        //const slicedImg = tf.browser.fromPixels(ctx.getImageData(start[0]-10, start[1]-10, size[0]+10, size[1]+10));
+
+        let crop_width = size[0];
+        let crop_height = size[1];
+
+        // Get valid bbox width in canvas
+        if (crop_width > img.shape[1] - start[0]){
+            crop_width =  img.shape[1] - start[0];
+        }
+
+        // Get valid bbox height in canvas
+        if (crop_height > img.shape[0] - start[1]){
+            crop_height =  img.shape[0] - start[1];
+        }
+        console.log(img.shape)
+        console.log(size)
+        console.log(start)
+
+        var slicedImg = img.slice([start[1]-30, start[0]], [Math.round(crop_height)+30,Math.round(crop_width)]);
         const resized = tf.image
-          .resizeBilinear(img, [224, 224])
+          .resizeBilinear(slicedImg, [224, 224])
           .div(tf.scalar(255));
         const cast = tf.cast(resized, "float32");
         const expanded = cast.expandDims(0);
@@ -96,21 +114,29 @@ function App() {
           color = "red";
           text = classes[2];
         }
+
+       
+
         requestAnimationFrame(() => {
           // Render a rectangle over each detected face.
           // Set styling
           ctx.strokeStyle = color;
           ctx.lineWidth = 10;
           ctx.fillStyle = "white";
-          ctx.font = "30px Arial";
-
+          ctx.font = "40px Arial";
+          //
+   
+          //
+  
           ctx.beginPath();
           ctx.fillText(
             text + " - " + Math.round(value * 100) / 100,
-            size[0],
-            size[1] - 10
+            start[0] -50 , start[1]-50
           );
-          ctx.rect(start[0], start[1], size[0], size[1]);
+          ctx.rect(start[0], start[1]-30, size[0], size[1]+30);
+    
+        
+
           ctx.stroke();
         });
         // Display the winner
@@ -137,7 +163,8 @@ function App() {
           muted={true}
           style={{
             position: "absolute",
-
+            marginLeft: "auto",
+            marginRight: "auto",
             left: 0,
             right: 0,
             textAlign: "center",
@@ -151,7 +178,8 @@ function App() {
           ref={canvasRef}
           style={{
             position: "absolute",
-
+            marginLeft: "auto",
+            marginRight: "auto",
             left: 0,
             right: 0,
             textAlign: "center",
